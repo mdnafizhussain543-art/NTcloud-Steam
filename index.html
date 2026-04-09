@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NTcloud Steam</title>
+
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+
   <style>
     * {
       box-sizing: border-box;
@@ -25,13 +28,13 @@
 
     .app {
       width: 100%;
-      max-width: 900px;
+      max-width: 980px;
     }
 
     .card {
-      background: rgba(255, 255, 255, 0.06);
+      background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 18px 50px rgba(0,0,0,0.35);
       border-radius: 26px;
       padding: 28px 20px;
       backdrop-filter: blur(12px);
@@ -42,6 +45,7 @@
       font-size: 34px;
       font-weight: 800;
       margin: 0;
+      letter-spacing: 0.3px;
     }
 
     .sub {
@@ -49,6 +53,7 @@
       margin-top: 10px;
       color: #b8c7da;
       font-size: 15px;
+      line-height: 1.5;
     }
 
     .input-wrap {
@@ -85,6 +90,12 @@
       border-radius: 18px;
       cursor: pointer;
       background: linear-gradient(135deg, #2563eb, #7c3aed);
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.28);
+      transition: transform 0.18s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
     }
 
     .error {
@@ -93,6 +104,7 @@
       color: #ff9e9e;
       font-size: 14px;
       display: none;
+      white-space: pre-line;
     }
 
     .loader-screen {
@@ -100,6 +112,7 @@
       margin-top: 24px;
       text-align: center;
       padding: 26px 12px 8px;
+      animation: fadeIn 0.35s ease;
     }
 
     .spinner {
@@ -115,11 +128,13 @@
     .loader-text {
       color: #d7e2ef;
       font-size: 15px;
+      letter-spacing: 0.3px;
     }
 
     .player-section {
       display: none;
       margin-top: 24px;
+      animation: fadeIn 0.45s ease;
     }
 
     .player-shell {
@@ -129,13 +144,22 @@
       background: #000;
       border-radius: 22px;
       overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    }
+
+    video, audio {
+      width: 100%;
+      display: block;
+      background: black;
     }
 
     video {
-      width: 100%;
       height: 100%;
-      display: block;
-      background: black;
+    }
+
+    audio {
+      margin-top: 10px;
+      min-height: 60px;
     }
 
     .gesture-zone {
@@ -153,7 +177,7 @@
       position: absolute;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%) scale(0.92);
       background: rgba(0,0,0,0.58);
       color: white;
       padding: 14px 18px;
@@ -163,13 +187,14 @@
       opacity: 0;
       pointer-events: none;
       z-index: 9;
-      transition: opacity 0.18s ease;
+      transition: opacity 0.18s ease, transform 0.18s ease;
       min-width: 110px;
       text-align: center;
     }
 
     .overlay-msg.show {
       opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
     }
 
     .speed-badge {
@@ -186,8 +211,59 @@
       display: none;
     }
 
+    .hint-box {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.06);
+      color: #d8e3f0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .hint-box b {
+      color: white;
+    }
+
+    .meta {
+      margin-top: 12px;
+      color: #9fb2c8;
+      font-size: 13px;
+      text-align: center;
+      word-break: break-all;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
     @keyframes spin {
       to { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .title {
+        font-size: 28px;
+      }
+
+      .card {
+        padding: 22px 14px;
+      }
+
+      .overlay-msg {
+        font-size: 18px;
+      }
     }
   </style>
 </head>
@@ -195,10 +271,13 @@
   <div class="app">
     <div class="card">
       <h1 class="title">NTcloud Steam</h1>
-      <div class="sub">Paste your video link and press Enter</div>
+      <div class="sub">
+        Paste your media link and press Enter<br>
+        Video, audio, HLS, DASH supported চেষ্টা করবে
+      </div>
 
       <div class="input-wrap">
-        <input type="text" id="videoInput" placeholder="Paste" />
+        <input type="text" id="mediaInput" placeholder="Paste" />
         <button id="enterBtn">Enter</button>
       </div>
 
@@ -206,40 +285,91 @@
 
       <div class="loader-screen" id="loaderScreen">
         <div class="spinner"></div>
-        <div class="loader-text">Loading video, please wait...</div>
+        <div class="loader-text">Loading media, please wait...</div>
       </div>
 
       <div class="player-section" id="playerSection">
         <div class="player-shell" id="playerShell">
           <video id="videoPlayer" controls playsinline preload="metadata"></video>
+
           <div class="gesture-zone left-zone" id="leftZone"></div>
           <div class="gesture-zone right-zone" id="rightZone"></div>
+
           <div class="overlay-msg" id="overlayMsg">+10s</div>
           <div class="speed-badge" id="speedBadge">2x speed</div>
+        </div>
+
+        <audio id="audioPlayer" controls preload="metadata" class="hidden"></audio>
+
+        <div class="meta" id="metaText"></div>
+
+        <div class="hint-box" id="hintBox">
+          <div><b>Left double tap:</b> 10 seconds back</div>
+          <div><b>Right double tap:</b> 10 seconds forward</div>
+          <div><b>Long press on video:</b> play at 2x speed</div>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    const videoInput = document.getElementById("videoInput");
+    const mediaInput = document.getElementById("mediaInput");
     const enterBtn = document.getElementById("enterBtn");
     const errorMsg = document.getElementById("errorMsg");
     const loaderScreen = document.getElementById("loaderScreen");
     const playerSection = document.getElementById("playerSection");
+
     const videoPlayer = document.getElementById("videoPlayer");
+    const audioPlayer = document.getElementById("audioPlayer");
+
     const leftZone = document.getElementById("leftZone");
     const rightZone = document.getElementById("rightZone");
     const overlayMsg = document.getElementById("overlayMsg");
     const speedBadge = document.getElementById("speedBadge");
     const playerShell = document.getElementById("playerShell");
+    const metaText = document.getElementById("metaText");
+    const hintBox = document.getElementById("hintBox");
 
     let pressTimer = null;
     let longPressActive = false;
     let hlsInstance = null;
+    let dashInstance = null;
+    let activeMedia = videoPlayer;
 
-    function isValidVideoUrl(url) {
-      return /\.(mp4|webm|ogg|m3u8)(\?.*)?$/i.test(url);
+    const videoExts = [
+      "mp4","webm","ogg","mov","m4v","mkv","avi","flv","3gp","ts","mpeg","mpg","m2ts"
+    ];
+
+    const audioExts = [
+      "mp3","wav","aac","m4a","ogg","oga","opus","flac"
+    ];
+
+    function getCleanUrl(url) {
+      return url.trim();
+    }
+
+    function getExt(url) {
+      const clean = url.split("?")[0].split("#")[0].toLowerCase();
+      const parts = clean.split(".");
+      return parts.length > 1 ? parts.pop() : "";
+    }
+
+    function isM3U8(url) {
+      return /\.m3u8(\?.*)?$/i.test(url);
+    }
+
+    function isMPD(url) {
+      return /\.mpd(\?.*)?$/i.test(url);
+    }
+
+    function isAudio(url) {
+      const ext = getExt(url);
+      return audioExts.includes(ext) && ext !== "ogg" ? true : ["mp3","wav","aac","m4a","oga","opus","flac"].includes(ext);
+    }
+
+    function isLikelyVideo(url) {
+      const ext = getExt(url);
+      return videoExts.includes(ext) || ext === "ogg";
     }
 
     function showMessage(text) {
@@ -251,96 +381,201 @@
       }, 700);
     }
 
-    function cleanupHls() {
+    function cleanupPlayers() {
       if (hlsInstance) {
         hlsInstance.destroy();
         hlsInstance = null;
       }
+      if (dashInstance) {
+        dashInstance.reset();
+        dashInstance = null;
+      }
+
+      videoPlayer.pause();
+      audioPlayer.pause();
+
+      videoPlayer.removeAttribute("src");
+      audioPlayer.removeAttribute("src");
+      videoPlayer.load();
+      audioPlayer.load();
     }
 
-    function loadVideo() {
-      const url = videoInput.value.trim();
+    function setMode(mode) {
+      if (mode === "audio") {
+        playerShell.classList.add("hidden");
+        audioPlayer.classList.remove("hidden");
+        hintBox.classList.add("hidden");
+        activeMedia = audioPlayer;
+      } else {
+        playerShell.classList.remove("hidden");
+        audioPlayer.classList.add("hidden");
+        hintBox.classList.remove("hidden");
+        activeMedia = videoPlayer;
+      }
+    }
+
+    function showError(message) {
+      loaderScreen.style.display = "none";
+      errorMsg.textContent = message;
+      errorMsg.style.display = "block";
+    }
+
+    function showLoaded(url, mode) {
+      loaderScreen.style.display = "none";
+      playerSection.style.display = "block";
+      metaText.textContent = `Detected mode: ${mode.toUpperCase()} | Source: ${url}`;
+    }
+
+    function loadNative(url, mode) {
+      setMode(mode);
+      if (mode === "audio") {
+        audioPlayer.src = url;
+        audioPlayer.load();
+      } else {
+        videoPlayer.src = url;
+        videoPlayer.load();
+      }
+    }
+
+    function loadHLS(url) {
+      setMode("video");
+
+      if (videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
+        videoPlayer.src = url;
+        videoPlayer.load();
+        return;
+      }
+
+      if (window.Hls && Hls.isSupported()) {
+        hlsInstance = new Hls({
+          maxBufferLength: 8,
+          backBufferLength: 4
+        });
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(videoPlayer);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, function() {
+          showLoaded(url, "hls");
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, function(event, data) {
+          if (data && data.fatal) {
+            showError("HLS stream could not be loaded.\nPossible reason: expired link, CORS, blocked server, or unsupported codec.");
+          }
+        });
+      } else {
+        showError("Your browser does not support HLS playback.");
+      }
+    }
+
+    function loadDASH(url) {
+      setMode("video");
+
+      if (window.dashjs) {
+        dashInstance = dashjs.MediaPlayer().create();
+        dashInstance.initialize(videoPlayer, url, false);
+        dashInstance.updateSettings({
+          streaming: {
+            buffer: {
+              fastSwitchEnabled: true,
+              bufferToKeep: 4,
+              bufferPruningInterval: 5
+            }
+          }
+        });
+
+        dashInstance.on("streamInitialized", function() {
+          showLoaded(url, "dash");
+        });
+
+        dashInstance.on("error", function() {
+          showError("DASH stream could not be loaded.\nPossible reason: expired link, CORS, blocked server, or unsupported codec.");
+        });
+      } else {
+        showError("DASH player library not found.");
+      }
+    }
+
+    function loadMedia() {
+      const url = getCleanUrl(mediaInput.value);
 
       errorMsg.style.display = "none";
       playerSection.style.display = "none";
       loaderScreen.style.display = "none";
-      cleanupHls();
+      metaText.textContent = "";
+      cleanupPlayers();
 
       if (!url) {
-        errorMsg.textContent = "Please paste a video link.";
-        errorMsg.style.display = "block";
-        return;
-      }
-
-      if (!isValidVideoUrl(url)) {
-        errorMsg.textContent = "Use a direct video link like .mp4, .webm, .ogg, or .m3u8";
-        errorMsg.style.display = "block";
+        showError("Please paste a media link.");
         return;
       }
 
       loaderScreen.style.display = "block";
 
       setTimeout(() => {
-        if (url.includes(".m3u8")) {
-          if (videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
-            videoPlayer.src = url;
-            videoPlayer.load();
-          } else if (window.Hls && Hls.isSupported()) {
-            hlsInstance = new Hls();
-            hlsInstance.loadSource(url);
-            hlsInstance.attachMedia(videoPlayer);
-            hlsInstance.on(Hls.Events.MANIFEST_PARSED, function () {
-              loaderScreen.style.display = "none";
-              playerSection.style.display = "block";
-            });
-            hlsInstance.on(Hls.Events.ERROR, function () {
-              loaderScreen.style.display = "none";
-              errorMsg.textContent = "This HLS stream could not be loaded.";
-              errorMsg.style.display = "block";
-            });
-          } else {
-            loaderScreen.style.display = "none";
-            errorMsg.textContent = "Your browser does not support this HLS stream.";
-            errorMsg.style.display = "block";
-          }
-        } else {
-          videoPlayer.src = url;
-          videoPlayer.load();
+        if (isM3U8(url)) {
+          loadHLS(url);
+          return;
         }
-      }, 1200);
+
+        if (isMPD(url)) {
+          loadDASH(url);
+          return;
+        }
+
+        if (isAudio(url)) {
+          loadNative(url, "audio");
+          return;
+        }
+
+        if (isLikelyVideo(url)) {
+          loadNative(url, "video");
+          return;
+        }
+
+        loadNative(url, "video");
+      }, 900);
     }
 
-    enterBtn.addEventListener("click", loadVideo);
+    enterBtn.addEventListener("click", loadMedia);
 
-    videoInput.addEventListener("keypress", function(e) {
+    mediaInput.addEventListener("keypress", function(e) {
       if (e.key === "Enter") {
-        loadVideo();
+        loadMedia();
       }
     });
 
     videoPlayer.addEventListener("loadeddata", () => {
-      loaderScreen.style.display = "none";
-      playerSection.style.display = "block";
+      showLoaded(videoPlayer.currentSrc || mediaInput.value.trim(), "video");
+    });
+
+    audioPlayer.addEventListener("loadeddata", () => {
+      showLoaded(audioPlayer.currentSrc || mediaInput.value.trim(), "audio");
     });
 
     videoPlayer.addEventListener("error", () => {
-      loaderScreen.style.display = "none";
-      errorMsg.textContent = "Video could not be loaded. Try another direct video link.";
-      errorMsg.style.display = "block";
+      showError("Video could not be loaded.\nPossible reason: unsupported format, blocked server, bad link, or expired token.");
+    });
+
+    audioPlayer.addEventListener("error", () => {
+      showError("Audio could not be loaded.\nPossible reason: unsupported format, blocked server, bad link, or expired token.");
     });
 
     rightZone.addEventListener("dblclick", () => {
+      if (activeMedia !== videoPlayer) return;
       if (!videoPlayer.duration || !isFinite(videoPlayer.duration)) return;
       videoPlayer.currentTime = Math.min(videoPlayer.currentTime + 10, videoPlayer.duration);
       showMessage("+10s");
     });
 
     leftZone.addEventListener("dblclick", () => {
+      if (activeMedia !== videoPlayer) return;
       videoPlayer.currentTime = Math.max(videoPlayer.currentTime - 10, 0);
       showMessage("-10s");
     });
 
     function startLongPress(e) {
+      if (activeMedia !== videoPlayer) return;
       e.preventDefault();
       clearTimeout(pressTimer);
       pressTimer = setTimeout(() => {
@@ -362,9 +597,10 @@
     playerShell.addEventListener("mousedown", startLongPress);
     playerShell.addEventListener("mouseup", endLongPress);
     playerShell.addEventListener("mouseleave", endLongPress);
+
     playerShell.addEventListener("touchstart", startLongPress, { passive: false });
     playerShell.addEventListener("touchend", endLongPress);
     playerShell.addEventListener("touchcancel", endLongPress);
   </script>
 </body>
-</html>
+                                                             </html>
